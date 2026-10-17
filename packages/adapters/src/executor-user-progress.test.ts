@@ -23,7 +23,7 @@ vi.mock("./bot-messages.js", () => ({
   returnBotMessageOutcome: vi.fn(async () => undefined),
 }));
 
-async function runTurn(finalText: string, silent = true) {
+async function runTurn(finalText: string, silent = true, narration = "I will check that.") {
   const run = {
     id: "run-1",
     botId: "bot-1",
@@ -36,7 +36,6 @@ async function runTurn(finalText: string, silent = true) {
     sourceMessageId: "source-1",
     leaseFence: 0,
   };
-  const narration = "I will check that.";
   const runtimeRun = vi.fn(async function* (_request: AgentRunRequest) {
     yield { type: "text" as const, text: narration };
     yield {
@@ -188,5 +187,21 @@ describe("withheld narration on short reply-producing turns", () => {
       .map((block) => block.text)
       .join("");
     expect(text).toBe(`I will check that.${finalText}`);
+  });
+});
+
+describe("text from separate assistant turns", () => {
+  it("keeps a paragraph break when pre-tool text ends mid-sentence", async () => {
+    const { finalizeRun } = await runTurn(
+      "Nothing has changed since then.",
+      false,
+      "The draft is posted at https://example.com/drafts/42",
+    );
+    const text = finalizeRun.mock.calls[0]![0].blocks.filter((block) => block.kind === "text")
+      .map((block) => block.text)
+      .join("");
+    expect(text).toBe(
+      "The draft is posted at https://example.com/drafts/42\n\nNothing has changed since then.",
+    );
   });
 });

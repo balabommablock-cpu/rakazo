@@ -7155,10 +7155,8 @@ export function createRunExecutor(deps: ExecutorDeps) {
                 const separator = assistantTurnSeparator(assembled, event.text);
                 if (separator) {
                   assembled += separator;
-                  if (currentTextSegment) currentTextSegment += separator;
-                  if (hasStreamedText || pendingProgress) {
-                    pendingProgress += progressRedactor.push(separator);
-                  }
+                  currentTextSegment += separator;
+                  pendingProgress += progressRedactor.push(separator);
                 }
               }
               assembled += event.text;

@@ -112,6 +112,7 @@ import {
   selectDefaultCredentialId,
   serializeModelSecret,
   storeBotSecret,
+  storedOpenAiCompatibleProbeKey,
   takeoverLeaseMs,
   toComputerRef,
   touchRunningComputer,
@@ -1293,8 +1294,53 @@ export function createRouter(deps: RouterDeps) {
       }),
       probeOpenAiCompatible: authed.models.probeOpenAiCompatible.handler(
         async ({ context, input }) => {
+          let apiKey = input.apiKey;
+          if (!apiKey?.trim()) {
+            try {
+              const preferred = await findModelCredential(
+                deps.prisma,
+                context.actor,
+                OPENAI_COMPATIBLE_PROVIDER_ID,
+              );
+              const credentials = await deps.prisma.userModelCredential.findMany({
+                where: { userId: context.actor.userId, provider: OPENAI_COMPATIBLE_PROVIDER_ID },
+                orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+              });
+              const candidates = preferred
+                ? [preferred, ...credentials.filter((credential) => credential.id !== preferred.id)]
+                : credentials;
+              const secrets = await deps.prisma.secret.findMany({
+                where: {
+                  id: { in: candidates.map((credential) => credential.secretId) },
+                  userId: context.actor.userId,
+                  spaceId: null,
+                },
+                select: { id: true, ciphertext: true },
+              });
+              const ciphertexts = new Map(secrets.map((secret) => [secret.id, secret.ciphertext]));
+              for (const credential of candidates) {
+                const ciphertext = ciphertexts.get(credential.secretId);
+                if (!ciphertext) continue;
+                try {
+                  apiKey = storedOpenAiCompatibleProbeKey(
+                    input.baseUrl,
+                    await deps.secrets.load(ciphertext, credential.secretId),
+                  );
+                  if (apiKey) break;
+                } catch {
+                  // An unreadable secret must not prevent trying the remaining credentials.
+                }
+              }
+            } catch {
+              // An unavailable saved key must not prevent a keyless probe.
+            }
+          }
           try {
-            const models = await probeOpenAiCompatibleModels(input, undefined, context.signal);
+            const models = await probeOpenAiCompatibleModels(
+              { ...input, apiKey },
+              undefined,
+              context.signal,
+            );
             return { models };
           } catch (error) {
             throw new ORPCError("BAD_REQUEST", {
@@ -2211,13 +2257,29 @@ export function createRouter(deps: RouterDeps) {
       }),
       react: authed.threads.react.handler(async ({ context, input }) => {
         const target = await resolveThreadTarget(deps.prisma, context.actor, input);
-        const result = await reactToThreadMessage(deps, context.actor, target, input);
+        // Without a model or while teaching, the reaction is still saved; it just starts no turn.
+        const mayStartTurn =
+          !(await modelSetup(deps, context.actor)).needsModel &&
+          (target.kind !== "bot" ||
+            (await assertTeachingSendAllowed(deps.prisma, context.actor.spaceId, target.botId).then(
+              () => true,
+              () => false,
+            )));
+        const result = await reactToThreadMessage(
+          deps,
+          context.actor,
+          target,
+          { ...input, mayStartTurn },
+          target.kind === "bot"
+            ? (runId) => releaseComputerControl(deps, context.actor, target.botId, "done", runId)
+            : undefined,
+        );
         if (result.eventSeq != null) {
           await deps.events.notify(target.threadId, result.eventSeq).catch((error) => {
             getLogger().error("thread reaction realtime notification", error);
           });
         }
-        return { ok: true as const };
+        return { ok: true as const, runIds: result.runIds };
       }),
       stop: authed.threads.stop.handler(async ({ context, input }) => {
         const target = await resolveThreadTarget(deps.prisma, context.actor, input);
@@ -3220,6 +3282,10 @@ export function createRouter(deps: RouterDeps) {
               homeKey: bot.computer.homeKey,
               providerRef: bot.computer.providerRef,
               kind: bot.computer.kind,
+              runningSince: bot.computer.runningSince,
+              controlHolder: bot.computer.controlHolder,
+              controlLeaseId: bot.computer.controlLeaseId,
+              controlLeaseExpiresAt: bot.computer.controlLeaseExpiresAt,
             },
           ).catch(() => undefined);
         }

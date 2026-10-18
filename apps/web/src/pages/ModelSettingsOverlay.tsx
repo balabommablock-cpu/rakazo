@@ -44,7 +44,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@rakazo/ui-web";
-import { Check, ChevronDown, Copy, ImageIcon, X } from "lucide-react";
+import { Check, ChevronDown, Copy, ImageOff, X } from "lucide-react";
 import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
@@ -1704,7 +1704,7 @@ function ModelPicker({
   return (
     <div ref={rootRef} className="relative mt-2">
       <span id={imagesHintId} hidden>
-        {t`Supports images`}
+        {t`Can't read images`}
       </span>
       <button
         ref={triggerRef}
@@ -1714,14 +1714,14 @@ function ModelPicker({
         aria-controls={listboxId}
         aria-expanded={open}
         aria-haspopup="listbox"
-        aria-describedby={options[selectedIndex]?.images ? imagesHintId : undefined}
+        aria-describedby={options[selectedIndex]?.images === false ? imagesHintId : undefined}
         className="flex h-10 w-full items-center justify-between rounded-lg border border-input bg-transparent px-3 text-start text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
         onClick={() => setOpen((current) => !current)}
         onKeyDown={onTriggerKeyDown}
       >
         <span className="min-w-0 truncate">{options[selectedIndex]?.label}</span>
         <span className="ml-3 flex shrink-0 items-center gap-2 text-muted-foreground">
-          {options[selectedIndex]?.images ? <SupportsImagesMark /> : null}
+          {options[selectedIndex]?.images === false ? <TextOnlyMark /> : null}
           <ChevronDown size={16} strokeWidth={1.8} aria-hidden="true" />
         </span>
       </button>
@@ -1820,7 +1820,7 @@ function ModelOption({
       type="button"
       role="option"
       aria-selected={option.id === value}
-      aria-describedby={option.images ? imagesHintId : undefined}
+      aria-describedby={option.images === false ? imagesHintId : undefined}
       tabIndex={highlighted ? 0 : -1}
       className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-start text-[13.5px] text-foreground outline-none hover:bg-accent focus-visible:bg-accent ${
         highlighted ? "bg-accent" : ""
@@ -1830,7 +1830,7 @@ function ModelOption({
     >
       <span className="min-w-0 truncate">{option.label}</span>
       <span className="flex shrink-0 items-center gap-2 text-[12px] text-muted-foreground">
-        {option.images ? <SupportsImagesMark /> : null}
+        {option.images === false ? <TextOnlyMark /> : null}
         {option.billing.toLowerCase().includes("free") ? t`Free` : null}
         {option.id === value ? (
           <Check size={14} strokeWidth={2} className="text-foreground" aria-hidden="true" />
@@ -1840,12 +1840,12 @@ function ModelOption({
   );
 }
 
-/** Picture icon for a model that supports images. Screen readers get the words via `aria-describedby`. */
-function SupportsImagesMark() {
+/** Subtle warning for a model that cannot read images. Screen readers get the words via `aria-describedby`. */
+function TextOnlyMark() {
   const { t } = useLingui();
   return (
-    <span className="flex items-center" title={t`Supports images`} aria-hidden="true">
-      <ImageIcon size={14} strokeWidth={1.8} />
+    <span className="flex items-center" title={t`Can't read images`} aria-hidden="true">
+      <ImageOff size={14} strokeWidth={1.8} />
     </span>
   );
 }

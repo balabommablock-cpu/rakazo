@@ -398,10 +398,11 @@ it("shows a stored OpenAI-compatible key and stays empty when none is saved", as
   }
 });
 
-it("marks the models that support images in the picker", async () => {
+it("warns only on text-only models in the picker", async () => {
   models.list.mockResolvedValue([
     { ...deepseekEntry, images: false },
     { ...deepseekEntry, id: "deepseek-vision", label: "DeepSeek Vision", images: true },
+    { ...deepseekEntry, id: "deepseek-unknown", label: "DeepSeek Unknown" },
   ]);
   const view = await renderSettings();
   try {
@@ -412,13 +413,13 @@ it("marks the models that support images in the picker", async () => {
         .filter(Boolean)
         .join(" ");
     const marked = (element: Element) =>
-      Boolean(element.querySelector('[title="Supports images"]'));
+      Boolean(element.querySelector(`[title="Can't read images"]`));
     const trigger = view.container.querySelector('button[role="combobox"]');
     if (!(trigger instanceof HTMLButtonElement)) throw new Error("Missing model picker");
     expect([trigger.textContent, marked(trigger), describedAs(trigger)]).toEqual([
       "DeepSeek Chat",
-      false,
-      "",
+      true,
+      "Can't read images",
     ]);
     await act(async () => {
       trigger.click();
@@ -428,16 +429,28 @@ it("marks the models that support images in the picker", async () => {
     expect(
       options.map((option) => [option.textContent, marked(option), describedAs(option)]),
     ).toEqual([
-      ["DeepSeek Chat", false, ""],
-      ["DeepSeek Vision", true, "Supports images"],
+      ["DeepSeek Chat", true, "Can't read images"],
+      ["DeepSeek Vision", false, ""],
+      ["DeepSeek Unknown", false, ""],
     ]);
     await act(async () => {
       (options[1] as HTMLButtonElement).click();
     });
     expect([trigger.textContent, marked(trigger), describedAs(trigger)]).toEqual([
       "DeepSeek Vision",
+      false,
+      "",
+    ]);
+    await act(async () => {
+      trigger.click();
+    });
+    await act(async () => {
+      (view.container.querySelector('[role="option"]') as HTMLButtonElement).click();
+    });
+    expect([trigger.textContent, marked(trigger), describedAs(trigger)]).toEqual([
+      "DeepSeek Chat",
       true,
-      "Supports images",
+      "Can't read images",
     ]);
   } finally {
     await view.unmount();

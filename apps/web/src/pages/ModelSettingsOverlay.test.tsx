@@ -397,3 +397,49 @@ it("shows a stored OpenAI-compatible key and stays empty when none is saved", as
     await empty.unmount();
   }
 });
+
+it("marks the models that support images in the picker", async () => {
+  models.list.mockResolvedValue([
+    { ...deepseekEntry, images: false },
+    { ...deepseekEntry, id: "deepseek-vision", label: "DeepSeek Vision", images: true },
+  ]);
+  const view = await renderSettings();
+  try {
+    const describedAs = (element: Element) =>
+      (element.getAttribute("aria-describedby") ?? "")
+        .split(" ")
+        .map((id) => (id ? document.getElementById(id)?.textContent : null))
+        .filter(Boolean)
+        .join(" ");
+    const marked = (element: Element) =>
+      Boolean(element.querySelector('[title="Supports images"]'));
+    const trigger = view.container.querySelector('button[role="combobox"]');
+    if (!(trigger instanceof HTMLButtonElement)) throw new Error("Missing model picker");
+    expect([trigger.textContent, marked(trigger), describedAs(trigger)]).toEqual([
+      "DeepSeek Chat",
+      false,
+      "",
+    ]);
+    await act(async () => {
+      trigger.click();
+    });
+    const options = [...view.container.querySelectorAll('[role="option"]')];
+    // The label stays the model name; the icon is for eyes, the description for screen readers.
+    expect(
+      options.map((option) => [option.textContent, marked(option), describedAs(option)]),
+    ).toEqual([
+      ["DeepSeek Chat", false, ""],
+      ["DeepSeek Vision", true, "Supports images"],
+    ]);
+    await act(async () => {
+      (options[1] as HTMLButtonElement).click();
+    });
+    expect([trigger.textContent, marked(trigger), describedAs(trigger)]).toEqual([
+      "DeepSeek Vision",
+      true,
+      "Supports images",
+    ]);
+  } finally {
+    await view.unmount();
+  }
+});

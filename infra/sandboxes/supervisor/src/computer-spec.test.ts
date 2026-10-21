@@ -67,12 +67,13 @@ describe("graphical computer spec", () => {
   });
 
   it("resolves the computer image tag outside Compose", () => {
-    expect(resolveComputerImage(undefined, undefined)).toBe("rakazo/computer:local");
+    // Explicit "" stands for unset, so exported RAKAZO_COMPUTER_IMAGE* values cannot leak in.
+    expect(resolveComputerImage("", "")).toBe("rakazo/computer:local");
     expect(resolveComputerImage("", "edge")).toBe("rakazo/computer:local");
     expect(resolveComputerImage("ghcr.io/elie222/rakazo/computer", "edge")).toBe(
       "ghcr.io/elie222/rakazo/computer:edge",
     );
-    expect(resolveComputerImage("ghcr.io/elie222/rakazo/computer", undefined)).toBe(
+    expect(resolveComputerImage("ghcr.io/elie222/rakazo/computer", "")).toBe(
       "ghcr.io/elie222/rakazo/computer",
     );
     // Compose already appends the tag, so a tagged or pinned image is never tagged twice.

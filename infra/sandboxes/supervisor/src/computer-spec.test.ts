@@ -269,6 +269,40 @@ describe("graphical computer spec", () => {
     expect(dockerfile).toMatch(/rakazo-focus-or-launch/);
   });
 
+  it.skipIf(process.platform === "win32")(
+    "finds Google Chrome and passes over Ubuntu's snap chromium",
+    () => {
+      const root = path.resolve(import.meta.dirname, "../../computer");
+      const temp = mkdtempSync(path.join(tmpdir(), "rakazo-browser-find-"));
+      const bin = path.join(temp, "bin");
+      const capture = path.join(temp, "launched");
+      const snapChromium = path.join(bin, "chromium-browser");
+      const chrome = path.join(bin, "google-chrome");
+      mkdirSync(bin);
+      writeFileSync(snapChromium, '#!/bin/sh\nexec /snap/bin/chromium "$@"\n');
+      writeFileSync(chrome, '#!/bin/sh\nprintf "%s" "$0" > "$RAKAZO_TEST_LAUNCHED"\n');
+      chmodSync(snapChromium, 0o755);
+      chmodSync(chrome, 0o755);
+
+      try {
+        const result = spawnSync("sh", [path.join(root, "rakazo-browser")], {
+          env: {
+            ...process.env,
+            DISPLAY: ":1",
+            HOME: path.join(temp, "home"),
+            PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+            RAKAZO_TEST_LAUNCHED: capture,
+          },
+          encoding: "utf8",
+        });
+        expect(result.status, result.error?.message ?? result.stderr).toBe(0);
+        expect(readFileSync(capture, "utf8")).toBe(chrome);
+      } finally {
+        rmSync(temp, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("ships a sha256-pinned gh CLI", () => {
     const root = path.resolve(import.meta.dirname, "../../computer");
     const dockerfile = readFileSync(path.join(root, "Dockerfile"), "utf8");

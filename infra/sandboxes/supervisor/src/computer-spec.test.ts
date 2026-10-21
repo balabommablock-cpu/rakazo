@@ -275,6 +275,7 @@ describe("graphical computer spec", () => {
       const root = path.resolve(import.meta.dirname, "../../computer");
       const temp = mkdtempSync(path.join(tmpdir(), "rakazo-browser-find-"));
       const bin = path.join(temp, "bin");
+      const tools = path.join(temp, "tools");
       const capture = path.join(temp, "launched");
       const snapChromium = path.join(bin, "chromium-browser");
       const chrome = path.join(bin, "google-chrome");
@@ -285,12 +286,34 @@ describe("graphical computer spec", () => {
       chmodSync(chrome, 0o755);
 
       try {
+        mkdirSync(tools);
+        // Expose only shell utilities, never browsers from the host PATH.
+        const utilities = [
+          "sh",
+          "mkdir",
+          "readlink",
+          "head",
+          "grep",
+          "rm",
+          "find",
+          "tr",
+          "sed",
+          "cat",
+        ];
+        if (process.platform === "linux") utilities.push("timeout");
+        for (const utility of utilities) {
+          const resolved = spawnSync("/bin/sh", ["-c", 'command -v "$1"', "sh", utility], {
+            encoding: "utf8",
+          });
+          expect(resolved.status, resolved.stderr).toBe(0);
+          symlinkSync(resolved.stdout.trim(), path.join(tools, utility));
+        }
         const result = spawnSync("sh", [path.join(root, "rakazo-browser")], {
           env: {
             ...process.env,
             DISPLAY: ":1",
             HOME: path.join(temp, "home"),
-            PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+            PATH: `${bin}${path.delimiter}${tools}`,
             RAKAZO_TEST_LAUNCHED: capture,
           },
           encoding: "utf8",

@@ -38,6 +38,7 @@ import {
   publishedLoopbackControlHostPort,
   resolveComputerControlEndpoint,
   resolveComputerEgressMode,
+  resolveComputerImage,
   resolveScreenNetworkMode,
   resolveScreenPublishTarget,
   resolveSpaceComputerLimit,
@@ -63,6 +64,27 @@ describe("graphical computer spec", () => {
     expect(resolveTeamScreenLimit("4")).toBe(4);
     for (const value of ["-1", "1.5", "not-a-number"])
       expect(() => resolveTeamScreenLimit(value)).toThrow(/positive integer/);
+  });
+
+  it("resolves the computer image tag outside Compose", () => {
+    expect(resolveComputerImage(undefined, undefined)).toBe("rakazo/computer:local");
+    expect(resolveComputerImage("", "edge")).toBe("rakazo/computer:local");
+    expect(resolveComputerImage("ghcr.io/elie222/rakazo/computer", "edge")).toBe(
+      "ghcr.io/elie222/rakazo/computer:edge",
+    );
+    expect(resolveComputerImage("ghcr.io/elie222/rakazo/computer", undefined)).toBe(
+      "ghcr.io/elie222/rakazo/computer",
+    );
+    // Compose already appends the tag, so a tagged or pinned image is never tagged twice.
+    expect(resolveComputerImage("ghcr.io/elie222/rakazo/computer:edge", "edge")).toBe(
+      "ghcr.io/elie222/rakazo/computer:edge",
+    );
+    expect(resolveComputerImage("registry.example.com:5000/rakazo/computer", "v1.2.3")).toBe(
+      "registry.example.com:5000/rakazo/computer:v1.2.3",
+    );
+    expect(resolveComputerImage("rakazo/computer@sha256:abc", "edge")).toBe(
+      "rakazo/computer@sha256:abc",
+    );
   });
 
   it("validates space computer limit", () => {
